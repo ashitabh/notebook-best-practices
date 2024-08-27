@@ -18,20 +18,33 @@
 # and thus clear the import cache to pick up changes.
 dbutils.library.restartPython()
 
+
 import pytest
 import os
 import sys
 
 # Run all tests in the repository root.
 notebook_path = dbutils.notebook.entry_point.getDbutils().notebook().getContext().notebookPath().get()
+print(notebook_path)
 repo_root = os.path.dirname(os.path.dirname(notebook_path))
+print(repo_root)
 os.chdir(f'/Workspace/{repo_root}')
 %pwd
+
 
 # Skip writing pyc files on a readonly filesystem.
 sys.dont_write_bytecode = True
 
-retcode = pytest.main([".", "-p", "no:cacheprovider"])
+# Specify the output JSON report file
+ctrf_report_file = "pytest-report.json"
+
+# Run pytest with JSON report option
+# Run pytest with CTRF option
+retcode = pytest.main([
+    ".", 
+    "-p", "no:cacheprovider", 
+    "--ctrf", ctrf_report_file  # Use the CTRF option here
+])
 
 # Fail the cell execution if we have any test failures.
 assert retcode == 0, 'The pytest invocation failed. See the log above for details.'

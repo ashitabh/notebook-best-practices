@@ -1,0 +1,54 @@
+# This file configures GitHub to run Databricks notebook tests on pull requests.
+#
+# To use this with your own repos, you'll need to adjust the parameters marked
+# with with CONFIGURE HERE:
+name: Run databricks cicd using git repo
+
+# CONFIGURE HERE: Uncomment the lines below to run tests on every pull request.
+# https://docs.github.com/en/actions/using-workflows/events-that-trigger-workflows#pull_request
+#
+on: [workflow_dispatch]
+
+env:
+  DATABRICKS_HOST: ${{ secrets.DATABRICKS_HOST }}
+  DATABRICKS_TOKEN: ${{ secrets.DATABRICKS_TOKEN }}
+  TARGET_FOLDER: ${{ vars.TARGET_FOLDER }}
+  REPO_DIRECTORY: ${{ vars.REPO_DIRECTORY }}
+  GIT_BRANCH: ${{ vars.GIT_BRANCH }}
+
+jobs:
+  unit-test-notebook:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Install Databricks CLI
+        run: |
+          curl -fsSL https://raw.githubusercontent.com/databricks/setup-cli/main/install.sh | sh
+
+      - name: Git update repo in databricks
+        env:
+          DATABRICKS_HOST: ${{ secrets.DATABRICKS_HOST }}
+          DATABRICKS_TOKEN: ${{ secrets.DATABRICKS_TOKEN }}
+        run: |
+         databricks repos update $REPO_DIRECTORY --branch $GIT_BRANCH
+
+      - name: Run test notebook
+        uses: databricks/run-notebook@main
+        with:
+          databricks-token: ${{ secrets.DATABRICKS_TOKEN }}
+          workspace-notebook-path: ${{ env.REPO_DIRECTORY }}/notebooks/run_unit_tests
+          existing-cluster-id: ${{ secrets.EXISTING_CLUSTER_ID }}
+
+
+      - name: Copy test report to local
+        env:
+          DATABRICKS_HOST: ${{ secrets.DATABRICKS_HOST }}
+          DATABRICKS_TOKEN: ${{ secrets.DATABRICKS_TOKEN }}
+        run: |
+         databricks workspace export ${{ env.TARGET_FOLDER }}/pytest-report.json --file "./pytest-report.json" --format SOURCE
+         ls -lR
+
+      - name: Publish CTRF Test Results
+        run: npx github-actions-ctrf pytest-report.json
+        if: always()  # Ensure this runs even if the tests fail
